@@ -51,7 +51,7 @@ private: // Member variables
 	SDL_Window* window = nullptr;
 	bool running{};
 	// Vulkan member variables
-	VkInstance instance;
+	VkInstance instance{};
 private: // Internal functions
 	void initWindow() {
 		SDL_Init(SDL_INIT_VIDEO);
@@ -81,7 +81,7 @@ private: // Internal functions
 		std::vector<const char*> sdlExtensions(sdlExtensionCount);
 		SDL_Vulkan_GetInstanceExtensions(window, &sdlExtensionCount, sdlExtensions.data());
 		// Checking if all the extension specified by SDL are available
-		if (!checkRequiredExtensionsPresent(sdlExtensions)) {
+		if (!checkExtensionsPresentInLayer(nullptr, sdlExtensions)) {
 			throw std::runtime_error("not all required extensions are available!");
 		}
 
@@ -98,12 +98,12 @@ private: // Internal functions
 			throw std::runtime_error("failed to create vulkan instance");
 		}
 	}
-	bool checkRequiredExtensionsPresent(const std::vector<const char*> extensions) {
+	bool checkExtensionsPresentInLayer(const char* const layerName, const std::vector<const char*> extensions) {
 		// Getting all the supported extensions
 		unsigned supportedExtensionCount{};
-		vkEnumerateInstanceExtensionProperties(nullptr, &supportedExtensionCount, nullptr);
+		vkEnumerateInstanceExtensionProperties(layerName, &supportedExtensionCount, nullptr);
 		std::vector<VkExtensionProperties> supportedExtensions(supportedExtensionCount);
-		vkEnumerateInstanceExtensionProperties(nullptr, &supportedExtensionCount, supportedExtensions.data());
+		vkEnumerateInstanceExtensionProperties(layerName, &supportedExtensionCount, supportedExtensions.data());
 		bool available = true;
 		for (const auto& extension : extensions) {
 			bool extensionAvailable = false;
