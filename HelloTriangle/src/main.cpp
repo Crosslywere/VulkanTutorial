@@ -41,6 +41,7 @@ private: // Private functions
 	}
 	void cleanUp() {
 		SDL_DestroyWindow(window);
+		SDL_Quit();
 	}
 private: // Member variables
 	const int WIDTH{ 800 };
