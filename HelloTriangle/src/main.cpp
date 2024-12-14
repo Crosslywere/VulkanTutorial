@@ -1,6 +1,7 @@
 #ifdef _WIN32
 #define VK_USE_PLATFORM_WIN32_KHR
-#endif // _WIN32
+#endif
+
 #include <glm/glm.hpp>
 #include <SDL2/SDL.h>
 #include <SDL2/SDL_vulkan.h>
@@ -9,10 +10,12 @@
 #include <iostream>
 #include <vector>
 #include <string>
+#include <map>
+#include <optional>
 
 #ifdef DEBUG
 #define ENABLE_VALIDATION_LAYERS
-#endif // DEBUG
+#endif
 
 VkResult CreateDebugUtilsMessengerEXT(
 	VkInstance instance,
@@ -37,6 +40,14 @@ void DestroyDebugUtilsMessengerEXT(
 		return fn(instance, debugMessenger, pAllocator);
 	}
 }
+
+
+struct QueueFamilyIndices {
+	std::optional<unsigned> graphicsFamily;
+	bool isComplete() {
+		return graphicsFamily.has_value();
+	}
+};
 
 class HelloTriangle {
 public:
@@ -84,11 +95,12 @@ private: // Private functions
 	SDL_Window* window = nullptr;
 	bool running{};
 	// Vulkan member variables
-	VkInstance instance{};
+	VkInstance instance = VK_NULL_HANDLE;
 	const std::vector<const char*> validationLayers = {
 		"VK_LAYER_KHRONOS_validation",
 	};
-	VkDebugUtilsMessengerEXT debugMessenger{};
+	VkDebugUtilsMessengerEXT debugMessenger = VK_NULL_HANDLE;
+	VkPhysicalDevice physicalDevice = VK_NULL_HANDLE; // No need to destroy(implicitly destroyed with instance)
 #pragma endregion
 #pragma region Internal_Functions
 private: // Internal functions
@@ -103,6 +115,7 @@ private: // Internal functions
 	void initVulkan() {
 		createInstance();
 		setupDebugMessenger();
+		pickPhysicalDevice();
 	}
 #pragma endregion
 	// Initialize an instance of Vulkan for the application
@@ -150,6 +163,7 @@ private: // Internal functions
 			throw std::runtime_error("failed to create vulkan instance");
 		}
 	}
+	// Setting up the debug messenger
 	void setupDebugMessenger() {
 #ifdef ENABLE_VALIDATION_LAYERS
 		VkDebugUtilsMessengerCreateInfoEXT createInfo{};
@@ -158,6 +172,28 @@ private: // Internal functions
 			throw std::runtime_error("failed to setup debug messenger");
 		}
 #endif
+	}
+	// Picking the Vulkan device that best matches requirements
+	void pickPhysicalDevice() {
+		unsigned deviceCount;
+		vkEnumeratePhysicalDevices(instance, &deviceCount, nullptr);
+		if (deviceCount == 0) {
+			throw std::runtime_error("failed to find GPUs with Vulkan support!");
+		}
+		std::vector<VkPhysicalDevice> devices(deviceCount);
+		vkEnumeratePhysicalDevices(instance, &deviceCount, devices.data());
+		// Deciding on the device that is most suitable
+		std::map<int, VkPhysicalDevice> candidates;
+		for (const auto& device : devices) {
+			int score = rateDeviceSuitability(device);
+			candidates.insert(std::make_pair(score, device));
+		}
+		if (candidates.rbegin()->first > 0 and isDeviceSuitable(candidates.rbegin()->second)) {
+			physicalDevice = candidates.rbegin()->second;
+		}
+		else {
+			throw std::runtime_error("failed to ind a suitable GPU");
+		}
 	}
 #pragma region Utility_Functions
 	bool checkExtensionsPresentInLayer(const char* const layerName, const std::vector<const char*>& extensions) {
@@ -227,6 +263,46 @@ private: // Internal functions
 		createInfo.messageType = VK_DEBUG_UTILS_MESSAGE_TYPE_GENERAL_BIT_EXT | VK_DEBUG_UTILS_MESSAGE_TYPE_VALIDATION_BIT_EXT
 			| VK_DEBUG_UTILS_MESSAGE_TYPE_PERFORMANCE_BIT_EXT;
 		createInfo.pfnUserCallback = debugCallback;
+	}
+	bool isDeviceSuitable(VkPhysicalDevice device) {
+		QueueFamilyIndices indices = findQueueFamilies(device);
+
+		return indices.isComplete();
+	}
+	int rateDeviceSuitability(VkPhysicalDevice device) {
+		int score = 0;
+
+		VkPhysicalDeviceProperties deviceProperties;
+		vkGetPhysicalDeviceProperties(device, &deviceProperties);
+
+		score += deviceProperties.deviceType * 500;
+		score += deviceProperties.limits.maxImageDimension2D;
+
+		VkPhysicalDeviceFeatures deviceFeatures;
+		vkGetPhysicalDeviceFeatures(device, &deviceFeatures);
+
+		if (!deviceFeatures.geometryShader) {
+			return 0;
+		}
+		return score;
+	}
+	QueueFamilyIndices findQueueFamilies(VkPhysicalDevice device) {
+		QueueFamilyIndices indices;
+		unsigned queueFamilyCount;
+		vkGetPhysicalDeviceQueueFamilyProperties(device, &queueFamilyCount, nullptr);
+		std::vector<VkQueueFamilyProperties> queueFamilies(queueFamilyCount);
+		vkGetPhysicalDeviceQueueFamilyProperties(device, &queueFamilyCount, queueFamilies.data());
+		int i = 0;
+		for (const auto& queueFamily : queueFamilies) {
+			if (queueFamily.queueFlags & VK_QUEUE_GRAPHICS_BIT) {
+				indices.graphicsFamily = i;
+			}
+			if (indices.isComplete()) {
+				break;
+			}
+			i++;
+		}
+		return indices;
 	}
 #pragma endregion
 };
