@@ -82,6 +82,7 @@ private: // Private functions
 		}
 	}
 	void cleanUp() {
+		vkDestroyDevice(logicalDevice, nullptr);
 #ifdef ENABLE_VALIDATION_LAYERS
 		DestroyDebugUtilsMessengerEXT(instance, debugMessenger, nullptr);
 #endif
@@ -101,6 +102,7 @@ private: // Private functions
 	};
 	VkDebugUtilsMessengerEXT debugMessenger = VK_NULL_HANDLE;
 	VkPhysicalDevice physicalDevice = VK_NULL_HANDLE; // No need to destroy(implicitly destroyed with instance)
+	VkDevice logicalDevice = VK_NULL_HANDLE;
 #pragma endregion
 #pragma region Internal_Functions
 private: // Internal functions
@@ -116,8 +118,10 @@ private: // Internal functions
 		createInstance();
 		setupDebugMessenger();
 		pickPhysicalDevice();
+		createLogicalDevice();
 	}
 #pragma endregion
+#pragma region Vulkan_Instanciation_Functions
 	// Initialize an instance of Vulkan for the application
 	void createInstance() {
 #ifdef ENABLE_VALIDATION_LAYERS
@@ -195,6 +199,37 @@ private: // Internal functions
 			throw std::runtime_error("failed to ind a suitable GPU");
 		}
 	}
+	// Creating a logical device to interface with the physical device
+	void createLogicalDevice() {
+		// Specifying the queue families to be added to the logical device
+		QueueFamilyIndices queueFamilyIndices = findQueueFamilies(physicalDevice);
+		VkDeviceQueueCreateInfo queueCreateInfo{};
+		queueCreateInfo.sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
+		queueCreateInfo.queueFamilyIndex = queueFamilyIndices.graphicsFamily.value();
+		queueCreateInfo.queueCount = 1;
+		float priority = 1.0f;
+		queueCreateInfo.pQueuePriorities = &priority;
+		// Specifying device features that are required on the logical device
+		VkPhysicalDeviceFeatures deviceFeatures{};
+		// Putting all together in the device create info
+		VkDeviceCreateInfo deviceCreateInfo{};
+		deviceCreateInfo.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
+		deviceCreateInfo.pEnabledFeatures = &deviceFeatures;
+		deviceCreateInfo.pQueueCreateInfos = &queueCreateInfo;
+		deviceCreateInfo.queueCreateInfoCount = 1;
+		deviceCreateInfo.enabledExtensionCount = 0;
+#ifdef ENABLE_VALIDATION_LAYERS
+		// For older version compatibility 
+		deviceCreateInfo.enabledLayerCount = static_cast<unsigned>(validationLayers.size());
+		deviceCreateInfo.ppEnabledLayerNames = validationLayers.data();
+#else
+		deviceCreateInfo.enabledLayerCount = 0;
+#endif
+		if (vkCreateDevice(physicalDevice, &deviceCreateInfo, nullptr, &logicalDevice) != VK_SUCCESS) {
+			throw std::runtime_error("failed to create logical device");
+		}
+	}
+#pragma endregion
 #pragma region Utility_Functions
 	bool checkExtensionsPresentInLayer(const char* const layerName, const std::vector<const char*>& extensions) {
 		// Getting all the supported extensions
