@@ -12,6 +12,7 @@
 #include <string>
 #include <map>
 #include <optional>
+#include <set>
 
 #ifdef DEBUG
 #define ENABLE_VALIDATION_LAYERS
@@ -43,9 +44,10 @@ void DestroyDebugUtilsMessengerEXT(
 
 
 struct QueueFamilyIndices {
-	std::optional<unsigned> graphicsFamily;
+	std::optional<unsigned> graphicsFamily; // Graphics
+	std::optional<unsigned> presentFamily; // Presentation
 	bool isComplete() {
-		return graphicsFamily.has_value();
+		return graphicsFamily.has_value() && presentFamily.has_value();
 	}
 };
 
@@ -86,6 +88,7 @@ private: // Private functions
 #ifdef ENABLE_VALIDATION_LAYERS
 		DestroyDebugUtilsMessengerEXT(instance, debugMessenger, nullptr);
 #endif
+		vkDestroySurfaceKHR(instance, surface, nullptr);
 		vkDestroyInstance(instance, nullptr);
 		SDL_DestroyWindow(window);
 		SDL_Quit();
@@ -103,6 +106,9 @@ private: // Private functions
 	VkDebugUtilsMessengerEXT debugMessenger = VK_NULL_HANDLE;
 	VkPhysicalDevice physicalDevice = VK_NULL_HANDLE; // No need to destroy(implicitly destroyed with instance)
 	VkDevice logicalDevice = VK_NULL_HANDLE;
+	VkQueue graphicsQueue = VK_NULL_HANDLE;
+	VkQueue presentQueue = VK_NULL_HANDLE;
+	VkSurfaceKHR surface = VK_NULL_HANDLE;
 #pragma endregion
 #pragma region Internal_Functions
 private: // Internal functions
@@ -117,6 +123,7 @@ private: // Internal functions
 	void initVulkan() {
 		createInstance();
 		setupDebugMessenger();
+		createWindowSurface();
 		pickPhysicalDevice();
 		createLogicalDevice();
 	}
@@ -203,20 +210,25 @@ private: // Internal functions
 	void createLogicalDevice() {
 		// Specifying the queue families to be added to the logical device
 		QueueFamilyIndices queueFamilyIndices = findQueueFamilies(physicalDevice);
-		VkDeviceQueueCreateInfo queueCreateInfo{};
-		queueCreateInfo.sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
-		queueCreateInfo.queueFamilyIndex = queueFamilyIndices.graphicsFamily.value();
-		queueCreateInfo.queueCount = 1;
+		std::vector<VkDeviceQueueCreateInfo> queueCreateInfos;
+		std::set<unsigned> uniqueQueueFamilies = { queueFamilyIndices.graphicsFamily.value(), queueFamilyIndices.presentFamily.value() };
 		float priority = 1.0f;
-		queueCreateInfo.pQueuePriorities = &priority;
+		for (auto queueFamily : uniqueQueueFamilies) {
+			VkDeviceQueueCreateInfo queueCreateInfo{};
+			queueCreateInfo.sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
+			queueCreateInfo.queueFamilyIndex = queueFamily;
+			queueCreateInfo.queueCount = 1;
+			queueCreateInfo.pQueuePriorities = &priority;
+			queueCreateInfos.push_back(queueCreateInfo);
+		}
 		// Specifying device features that are required on the logical device
 		VkPhysicalDeviceFeatures deviceFeatures{};
 		// Putting all together in the device create info
 		VkDeviceCreateInfo deviceCreateInfo{};
 		deviceCreateInfo.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
 		deviceCreateInfo.pEnabledFeatures = &deviceFeatures;
-		deviceCreateInfo.pQueueCreateInfos = &queueCreateInfo;
-		deviceCreateInfo.queueCreateInfoCount = 1;
+		deviceCreateInfo.pQueueCreateInfos = queueCreateInfos.data();
+		deviceCreateInfo.queueCreateInfoCount = static_cast<unsigned>(queueCreateInfos.size());
 		deviceCreateInfo.enabledExtensionCount = 0;
 #ifdef ENABLE_VALIDATION_LAYERS
 		// For older version compatibility 
@@ -228,10 +240,18 @@ private: // Internal functions
 		if (vkCreateDevice(physicalDevice, &deviceCreateInfo, nullptr, &logicalDevice) != VK_SUCCESS) {
 			throw std::runtime_error("failed to create logical device");
 		}
+		vkGetDeviceQueue(logicalDevice, queueFamilyIndices.graphicsFamily.value(), 0, &graphicsQueue);
+		vkGetDeviceQueue(logicalDevice, queueFamilyIndices.presentFamily.value(), 0, &presentQueue);
+	}
+	// Creating a surface to display graphics on
+	void createWindowSurface() {
+		if (SDL_Vulkan_CreateSurface(window, instance, &surface) != SDL_TRUE) {
+			throw std::runtime_error("failed to create window surface");
+		}
 	}
 #pragma endregion
 #pragma region Utility_Functions
-	bool checkExtensionsPresentInLayer(const char* const layerName, const std::vector<const char*>& extensions) {
+	bool checkExtensionsPresentInLayer(const char* const layerName, const std::vector<const char*>& extensions) const {
 		// Getting all the supported extensions
 		unsigned supportedExtensionCount{};
 		vkEnumerateInstanceExtensionProperties(layerName, &supportedExtensionCount, nullptr);
@@ -252,7 +272,7 @@ private: // Internal functions
 		}
 		return available;
 	}
-	bool checkValidationLayerSupport() {
+	bool checkValidationLayerSupport() const {
 		// Getting all the available layers
 		unsigned layerCount;
 		vkEnumerateInstanceLayerProperties(&layerCount, nullptr);
@@ -273,7 +293,7 @@ private: // Internal functions
 		}
 		return true;
 	}
-	std::vector<const char*> getRequiredExtensions() {
+	std::vector<const char*> getRequiredExtensions() const {
 		unsigned sdlExtensionCount;
 		SDL_Vulkan_GetInstanceExtensions(window, &sdlExtensionCount, nullptr);
 		std::vector<const char*> extensions(sdlExtensionCount);
@@ -291,7 +311,7 @@ private: // Internal functions
 		std::cerr << pCallbackData->pMessage << std::endl;
 		return VK_FALSE;// Return VK_TRUE if call to this should abort
 	}
-	void populateDebugMessengerCreateInfo(VkDebugUtilsMessengerCreateInfoEXT& createInfo) {
+	void populateDebugMessengerCreateInfo(VkDebugUtilsMessengerCreateInfoEXT& createInfo) const {
 		createInfo = {};
 		createInfo.sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_MESSENGER_CREATE_INFO_EXT;
 		createInfo.messageSeverity = VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT | VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT;
@@ -299,12 +319,12 @@ private: // Internal functions
 			| VK_DEBUG_UTILS_MESSAGE_TYPE_PERFORMANCE_BIT_EXT;
 		createInfo.pfnUserCallback = debugCallback;
 	}
-	bool isDeviceSuitable(VkPhysicalDevice device) {
+	bool isDeviceSuitable(VkPhysicalDevice device) const {
 		QueueFamilyIndices indices = findQueueFamilies(device);
 
 		return indices.isComplete();
 	}
-	int rateDeviceSuitability(VkPhysicalDevice device) {
+	int rateDeviceSuitability(VkPhysicalDevice device) const {
 		int score = 0;
 
 		VkPhysicalDeviceProperties deviceProperties;
@@ -321,7 +341,7 @@ private: // Internal functions
 		}
 		return score;
 	}
-	QueueFamilyIndices findQueueFamilies(VkPhysicalDevice device) {
+	QueueFamilyIndices findQueueFamilies(VkPhysicalDevice device) const {
 		QueueFamilyIndices indices;
 		unsigned queueFamilyCount;
 		vkGetPhysicalDeviceQueueFamilyProperties(device, &queueFamilyCount, nullptr);
@@ -331,6 +351,11 @@ private: // Internal functions
 		for (const auto& queueFamily : queueFamilies) {
 			if (queueFamily.queueFlags & VK_QUEUE_GRAPHICS_BIT) {
 				indices.graphicsFamily = i;
+				VkBool32 presentSupport;
+				vkGetPhysicalDeviceSurfaceSupportKHR(device, i, surface, &presentSupport);
+				if (presentSupport) {
+					indices.presentFamily = i;
+				}
 			}
 			if (indices.isComplete()) {
 				break;
