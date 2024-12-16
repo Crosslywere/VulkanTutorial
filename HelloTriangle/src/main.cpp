@@ -90,6 +90,7 @@ private: // Private functions
 	}
 	void cleanUp() {
 		vkDestroyPipelineLayout(logicalDevice, pipelineLayout, nullptr);
+		vkDestroyRenderPass(logicalDevice, renderPass, nullptr);
 		for (auto imageView : swapChainImageViews) {
 			vkDestroyImageView(logicalDevice, imageView, nullptr);
 		}
@@ -127,6 +128,7 @@ private: // Private functions
 	VkFormat swapChainImageFormat;
 	VkExtent2D swapChainExtent;
 	std::vector<VkImageView> swapChainImageViews;
+	VkRenderPass renderPass = VK_NULL_HANDLE;
 	VkPipelineLayout pipelineLayout = VK_NULL_HANDLE;
 #pragma endregion
 #pragma region Internal_Functions
@@ -148,6 +150,7 @@ private: // Internal functions
 		createLogicalDevice();
 		createSwapChain();
 		createSwapChainImageViews();
+		createRenderPass();
 		createGraphicsPipeline();
 	}
 #pragma endregion
@@ -338,6 +341,37 @@ private: // Internal functions
 			if (vkCreateImageView(logicalDevice, &imageViewCreateInfo, nullptr, &swapChainImageViews.at(i)) != VK_SUCCESS) {
 				throw std::runtime_error("failed to create image view");
 			}
+		}
+	}
+	void createRenderPass() {
+		VkAttachmentDescription colorAttachment{};
+		colorAttachment.format = swapChainImageFormat;
+		colorAttachment.samples = VK_SAMPLE_COUNT_1_BIT; // No multisampling
+		colorAttachment.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
+		colorAttachment.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
+		colorAttachment.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+		colorAttachment.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+		colorAttachment.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED; // Dont care what image was used for previously
+		colorAttachment.finalLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR; // Transition to present on the swap chain after processing
+
+		// Setting up the output color ie layout (location = 0)
+		VkAttachmentReference colorAttachmentRef{};
+		colorAttachmentRef.attachment = 0;
+		colorAttachmentRef.layout = VK_IMAGE_LAYOUT_ATTACHMENT_OPTIMAL;
+
+		VkSubpassDescription subpass{};
+		subpass.pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS;
+		subpass.colorAttachmentCount = 1;
+		subpass.pColorAttachments = &colorAttachmentRef;
+
+		VkRenderPassCreateInfo renderPassCreateInfo{};
+		renderPassCreateInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO;
+		renderPassCreateInfo.pAttachments = &colorAttachment;
+		renderPassCreateInfo.attachmentCount = 1;
+		renderPassCreateInfo.pSubpasses = &subpass;
+		renderPassCreateInfo.subpassCount = 1;
+		if (vkCreateRenderPass(logicalDevice, &renderPassCreateInfo, nullptr, &renderPass) != VK_SUCCESS) {
+			throw std::runtime_error("failed to create render pass");
 		}
 	}
 	// Creating a simple graphics pipeline for displaying a triangle
