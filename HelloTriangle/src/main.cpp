@@ -89,6 +89,7 @@ private: // Private functions
 		}
 	}
 	void cleanUp() {
+		vkDestroyPipeline(logicalDevice, graphicsPipeline, nullptr);
 		vkDestroyPipelineLayout(logicalDevice, pipelineLayout, nullptr);
 		vkDestroyRenderPass(logicalDevice, renderPass, nullptr);
 		for (auto imageView : swapChainImageViews) {
@@ -130,6 +131,7 @@ private: // Private functions
 	std::vector<VkImageView> swapChainImageViews;
 	VkRenderPass renderPass = VK_NULL_HANDLE;
 	VkPipelineLayout pipelineLayout = VK_NULL_HANDLE;
+	VkPipeline graphicsPipeline = VK_NULL_HANDLE;
 #pragma endregion
 #pragma region Internal_Functions
 private: // Internal functions
@@ -466,13 +468,24 @@ private: // Internal functions
 
 		VkGraphicsPipelineCreateInfo graphicsCreateInfo{};
 		graphicsCreateInfo.sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO;
+		graphicsCreateInfo.pStages = shaderStages;
+		graphicsCreateInfo.stageCount = 2;
 		graphicsCreateInfo.pDynamicState = &dynamicStateCreateInfo;
 		graphicsCreateInfo.pVertexInputState = &vertInputCreateInfo;
 		graphicsCreateInfo.pRasterizationState = &rasterCreateInfo;
 		graphicsCreateInfo.pMultisampleState = &multisampleCreateInfo;
 		graphicsCreateInfo.pColorBlendState = &colorBlendCreateInfo;
-		graphicsCreateInfo.pDepthStencilState = nullptr;
+		graphicsCreateInfo.pViewportState = &viewportStateCreateInfo;
+		graphicsCreateInfo.pInputAssemblyState = &assemblyCreateInfo;
+		graphicsCreateInfo.layout = pipelineLayout;
+		graphicsCreateInfo.renderPass = renderPass;
+		graphicsCreateInfo.subpass = 0;
+		graphicsCreateInfo.basePipelineHandle = VK_NULL_HANDLE;
+		graphicsCreateInfo.basePipelineIndex = -1;
 
+		if (vkCreateGraphicsPipelines(logicalDevice, VK_NULL_HANDLE, 1, &graphicsCreateInfo, nullptr, &graphicsPipeline) != VK_SUCCESS) {
+			throw std::runtime_error("failed to create graphics pipeline");
+		}
 		vkDestroyShaderModule(logicalDevice, vertShaderModule, nullptr);
 		vkDestroyShaderModule(logicalDevice, fragShaderModule, nullptr);
 	}
