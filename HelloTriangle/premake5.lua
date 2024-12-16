@@ -4,9 +4,20 @@ project "HelloTriangle"
 	cppdialect "C++17"
 	targetdir "../bin/%{prj.name}/%{cfg.buildcfg}"
 	objdir "../obj/%{prj.name}/%{cfg.buildcfg}"
-	files {"**.cpp"}
+	files {"**.cpp", "**.vert", "**.frag"}
 	vpaths {
-		["Source"] = "**.cpp"
+		["Source"] = "**.cpp",
+		["Resource"] = {"**.vert", "**.frag"}
+	}
+
+	-- Prebuild commands to compile shaders and move them into the correct directory
+	prebuildcommands {
+		"{MKDIR} shaders",
+		"glslc res/shader.vert -o vert.spv",
+		"{MOVE} vert.spv shaders/vert.spv",
+		"glslc res/shader.frag -o frag.spv",
+		"{MOVE} frag.spv shaders/frag.spv",
+		"{COPYFILE} shaders ../bin/%{prj.name}/%{cfg.buildcfg}/shaders"
 	}
 
 	filter "system:windows"
