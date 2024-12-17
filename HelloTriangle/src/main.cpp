@@ -126,12 +126,13 @@ private: // Private functions
 	};
 	VkSwapchainKHR swapChain = VK_NULL_HANDLE;
 	std::vector<VkImage> swapChainImages{};
-	VkFormat swapChainImageFormat;
-	VkExtent2D swapChainExtent;
+	VkFormat swapChainImageFormat{};
+	VkExtent2D swapChainExtent{};
 	std::vector<VkImageView> swapChainImageViews;
 	VkRenderPass renderPass = VK_NULL_HANDLE;
 	VkPipelineLayout pipelineLayout = VK_NULL_HANDLE;
 	VkPipeline graphicsPipeline = VK_NULL_HANDLE;
+	std::vector<VkFramebuffer> swapChainFramebuffers;
 #pragma endregion
 #pragma region Internal_Functions
 private: // Internal functions
@@ -154,6 +155,7 @@ private: // Internal functions
 		createSwapChainImageViews();
 		createRenderPass();
 		createGraphicsPipeline();
+		createFramebuffers();
 	}
 #pragma endregion
 #pragma region Vulkan_Instanciation_Functions
@@ -407,6 +409,7 @@ private: // Internal functions
 		assemblyCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO;
 		assemblyCreateInfo.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
 		assemblyCreateInfo.primitiveRestartEnable = VK_FALSE; // For most cases it should be VK_TRUE
+		
 		// Describing the area of the view buffer to display the image to.
 		VkViewport viewPort{};
 		viewPort.x = 0.0f;
@@ -492,6 +495,25 @@ private: // Internal functions
 		}
 		vkDestroyShaderModule(logicalDevice, vertShaderModule, nullptr);
 		vkDestroyShaderModule(logicalDevice, fragShaderModule, nullptr);
+	}
+	// Creating the framebuffers that links to the swapchain images
+	void createFramebuffers() {
+		swapChainFramebuffers.resize(swapChainImageViews.size());
+		for (size_t i = 0; i < swapChainImageViews.size(); i++) {
+			VkImageView* attachments = &swapChainImageViews.at(i);
+			VkFramebufferCreateInfo framebufferInfo{};
+			framebufferInfo.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
+			framebufferInfo.renderPass = renderPass;
+			framebufferInfo.attachmentCount = 1;
+			framebufferInfo.pAttachments = attachments;
+			framebufferInfo.width = swapChainExtent.width;
+			framebufferInfo.height = swapChainExtent.height;
+			framebufferInfo.layers = 1;
+
+			if (vkCreateFramebuffer(logicalDevice, &framebufferInfo, nullptr, &swapChainFramebuffers.at(i)) != VK_SUCCESS) {
+				throw std::runtime_error("failed to create framebuffer");
+			}
+		}
 	}
 #pragma endregion
 #pragma region Utility_Functions
