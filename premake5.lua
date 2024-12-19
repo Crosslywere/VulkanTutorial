@@ -3,3 +3,5 @@ workspace "Vulkan"
 	configurations {"Debug", "Release"}
 
 	include "HelloTriangle"
+
+	include "AppFramework"
