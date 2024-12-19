@@ -20,3 +20,8 @@ Followed the tutorial at [Vulkan Tutorial](https://vulkan-tutorial.com) to draw 
 <center>
 <img src="HelloTriangle/output.png" alt="Hello Triangle Output">
 </center>
+
+2. **[ApplicationFramework](AppFramework)**
+Building this to go over what I have learnt through out the project.
+The goal is to obfuscate all the implementation of the rendering code to this as a library
+and simply require the `Application.h` file to get access to the rendering code. 
