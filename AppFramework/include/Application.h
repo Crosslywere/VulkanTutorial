@@ -2,8 +2,9 @@
 
 #include <vulkan/vulkan.hpp>
 
-// Forward declearations
-struct SDL_Window;
+#ifndef SDL_h_
+typedef struct SDL_Window SDL_Window;
+#endif
 
 class Application {
 public:
@@ -19,14 +20,16 @@ private:
 	bool m_Running = false;
 	SDL_Window* m_Window = nullptr;
 	VkInstance m_Instance = nullptr;
+	VkDebugUtilsMessengerEXT m_DebugMessenger = nullptr;
 	VkSurfaceKHR m_Surface = nullptr;
 	VkPhysicalDevice m_PhysicalDevice = nullptr;
 	VkDevice m_Device = nullptr;
 	void InitWindow();
-	void InitVulkan();
-	void InitInstance();
-	void InitSurface();
+	void CreateInstance();
+	void SetupDebugMessenger();
+	void CreateSurface();
 	void SelectPhysicalDevice();
 	void CreateDevice();
+	void InitVulkan();
 	void CleanUp();
 };
